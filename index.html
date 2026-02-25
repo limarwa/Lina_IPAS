@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi Ujian IPAS HOTS - SMK Merah Putih</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #1e293b;
+            --accent: #3b82f6;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --unanswered: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .nav-item {
+            aspect-ratio: 1/1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.7rem;
+            background: var(--unanswered);
+        }
+
+        .nav-item.active { border: 2px solid var(--accent); background: white; }
+        .nav-item.filled { background: var(--success); color: white; border-color: #15803d; }
+
+        .option {
+            display: flex;
+            align-items: center;
+            padding: 0.8rem 1.2rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .option.selected {
+            background-color: #eff6ff;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+
+        .opt-letter {
+            width: 30px; height: 30px;
+            border: 1px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            margin-right: 1rem;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .selected .opt-letter { background: var(--accent); color: white; border-color: var(--accent); }
+
+        .timer-box {
+            background: #000;
+            color: #ff0000;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            #result-modal { position: absolute; top: 0; left: 0; background: white; color: black; display: block !important; overflow: visible !important; width: 100%; }
+            #review-scroll-area { max-height: none !important; overflow: visible !important; }
+        }
+    </style>
+</head>
+<body class="flex flex-col">
+
+<!-- Watermark -->
+<div class="fixed bottom-0 left-0 w-full bg-slate-100 text-slate-500 text-center py-1 text-xs font-bold border-t z-50">
+    Media Milik: Lina Marwati, S.Pd.
+</div>
+
+<!-- Login & Leaderboard -->
+<div id="login-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-[100] p-4 overflow-y-auto">
+    <div class="flex flex-col md:flex-row gap-6 w-full max-w-5xl">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl flex-1">
+            <h2 class="text-2xl font-bold text-slate-800 mb-1 text-center">Simulasi Ujian IPAS</h2>
+            <p class="text-slate-500 text-sm mb-6 text-center">SMK Merah Putih School Metro</p>
+            
+            <div class="space-y-4 text-slate-800">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Nama Lengkap</label>
+                    <input type="text" id="input-nama" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Masukkan nama Anda...">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Nomor Peserta</label>
+                    <input type="text" id="input-nomor" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Contoh: 2025-01">
+                </div>
+                <button onclick="startExam()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors uppercase tracking-wider">Mulai Ujian</button>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl flex-1 border border-slate-700">
+            <h3 class="text-white font-bold mb-4 flex items-center gap-2 text-lg">🏆 Peringkat Tertinggi</h3>
+            <div id="leaderboard-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-2 text-sm text-slate-300">
+                <!-- Data akan diisi via JS -->
+                <p class="text-center italic opacity-50">Belum ada data skor.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main UI -->
+<header class="bg-slate-900 text-white p-4 flex justify-between items-center shadow-md">
+    <div>
+        <h1 class="font-bold text-lg leading-tight">UJIAN IPAS TERPADU</h1>
+        <p class="text-xs text-slate-400 uppercase tracking-widest">Kurikulum Merdeka</p>
+    </div>
+    <div class="timer-box" id="timer-display">60:00</div>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+    <main class="flex-1 overflow-y-auto p-6 md:p-12 bg-white">
+        <div class="max-w-4xl mx-auto">
+            <div class="flex justify-between items-center mb-6 pb-2 border-b border-dashed border-slate-200">
+                <span class="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-bold" id="q-number">SOAL --</span>
+                <span class="text-xs font-semibold text-slate-400 tracking-widest uppercase" id="q-category">IPAS</span>
+            </div>
+
+            <div id="q-text" class="text-xl md:text-2xl font-medium text-slate-800 mb-8 leading-relaxed"></div>
+            <div class="grid gap-3" id="options-list"></div>
+
+            <div class="mt-12 flex justify-between pt-6 border-t border-slate-100">
+                <button onclick="changeQuestion(-1)" id="prev-btn" class="px-6 py-2 rounded-lg font-bold border text-slate-700 hover:bg-slate-50 disabled:opacity-30">SEBELUMNYA</button>
+                <button onclick="changeQuestion(1)" id="next-btn" class="px-6 py-2 rounded-lg font-bold bg-blue-600 text-white hover:bg-blue-700">SELANJUTNYA</button>
+            </div>
+        </div>
+    </main>
+
+    <aside class="w-64 bg-white border-l p-4 flex flex-col gap-4 no-print hidden md:flex">
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <div class="font-bold text-xs truncate mb-1" id="disp-nama">SISWA</div>
+            <div class="text-[10px] text-slate-500" id="disp-nomor">NOMOR</div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto">
+            <div class="text-[10px] font-black text-slate-400 mb-3 uppercase tracking-tighter">Navigasi Soal</div>
+            <div class="grid grid-cols-5 gap-2" id="nav-grid"></div>
+        </div>
+
+        <button onclick="openConfirmModal()" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-green-700">SELESAI</button>
+    </aside>
+</div>
+
+<!-- Modal Konfirmasi -->
+<div id="confirm-modal" class="modal-overlay fixed inset-0 bg-black/80 hidden z-[200] items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-2xl max-w-sm w-full text-center">
+        <h2 class="text-xl font-bold mb-4 text-slate-800">Kirim Jawaban?</h2>
+        <p id="confirm-msg" class="text-slate-600 mb-6 text-sm"></p>
+        <div class="flex gap-3">
+            <button onclick="closeConfirmModal()" class="flex-1 py-2 font-bold border rounded-lg">BATAL</button>
+            <button onclick="finishExam()" class="flex-1 py-2 font-bold bg-green-600 text-white rounded-lg uppercase">Ya, Kirim</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Hasil -->
+<div id="result-modal" class="modal-overlay fixed inset-0 bg-black/90 hidden z-[300] items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-4xl w-full flex flex-col max-h-[90vh] text-slate-800 shadow-2xl overflow-hidden">
+        <div class="bg-slate-900 text-white p-6 text-center">
+            <h2 class="text-2xl font-black">HASIL UJIAN AKHIR</h2>
+            <p class="text-xs text-slate-400" id="res-timestamp"></p>
+        </div>
+
+        <div class="p-6 overflow-y-auto" id="review-scroll-area">
+            <div class="flex flex-col md:flex-row items-center justify-center gap-6 p-6 bg-blue-50 rounded-2xl border border-blue-100 mb-8">
+                <div class="text-center md:text-left">
+                    <p class="text-[10px] font-bold text-blue-400 uppercase">Nama Peserta</p>
+                    <p id="res-name" class="text-xl font-bold text-slate-800">--</p>
+                    <p id="res-id" class="text-sm font-mono text-blue-600">--</p>
+                </div>
+                <div class="w-px h-16 bg-blue-200 hidden md:block"></div>
+                <div class="flex flex-col items-center">
+                    <div class="text-5xl font-black text-blue-600" id="final-score">0</div>
+                    <div class="text-[10px] font-bold text-slate-400 uppercase">Skor Total</div>
+                </div>
+                <div class="w-px h-16 bg-blue-200 hidden md:block"></div>
+                <div class="text-center">
+                    <p id="final-stats" class="font-bold text-slate-700 text-lg">0 / 30</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Jawaban Benar</p>
+                </div>
+            </div>
+
+            <div id="review-section">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="h-4 w-1 bg-blue-600 rounded"></div>
+                    <h3 class="font-bold text-lg text-slate-800">Review Jawaban</h3>
+                </div>
+                <div id="review-list" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <div class="p-6 bg-slate-50 border-t flex gap-3 no-print">
+            <button onclick="window.print()" class="flex-1 py-3 bg-white border text-slate-700 font-bold rounded-xl hover:bg-slate-100 transition-all">Cetak PDF</button>
+            <button onclick="location.reload()" class="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all">Kembali</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // Data Soal 
+    const questions = [
+        { q: "Peristiwa yang menunjukkan gejala alam biotik di lingkungan kantor adalah…", options: ["Tanaman hias di ruang kerja tumbuh subur", "Lampu kantor mati karena listrik padam", "Meja terasa dingin saat suhu ruangan menurun", "Atap kantor berbunyi saat hujan deras", "Kertas berterbangan tertiup angin"], correct: 0, cat: "Biotik" },
+        { q: "Pegawai menanam tanaman herbal di ruang kerja untuk aromaterapi. Tanaman dirawat sehingga tumbuh subur dan pegawai mendapatkan udara lebih segar. Simbiosis yang terjadi adalah…", options: ["Parasitisme", "Komensalisme", "Mutualisme", "Predasi", "Kompetisi"], correct: 2, cat: "Ekosistem" },
+        { q: "Proses meresapnya air hujan ke dalam pori-pori tanah lalu membentuk aliran kecil menuju pada sumber mata air, secara berturut-turut disebut …", options: ["Evaporasi – Adveksi", "Kondensasi – ilfiltrasi", "Presipitasi – infiltrasi", "Infiltrasi – Run off", "Run off – presipitasi"], correct: 3, cat: "Hidrologi" },
+        { q: "OB menyemprotkan cairan pembersih pada meja yang kotor dan berjamur, sehingga bersih setelah dilap. Ini menunjukkan perubahan zat karena …", options: ["Tidak ada perubahan apa pun pada zat", "Perubahan kimia akibat reaksi cairan pembersih", "Meja berubah menjadi zat baru", "Cairan pembersih bekerja efektif", "Kotoran berubah menjadi padat"], correct: 1, cat: "Zat" },
+        { q: "Sebuah es batu dipanaskan hingga mencair kemudian mendidih. Yang terjadi adalah…", options: ["Struktur molekul air berubah menjadi gas, energi dilepaskan", "Struktur molekul air tetap utuh, energi diserap", "Struktur molekul air berubah menjadi padat, energi dilepaskan", "Struktur molekul air berubah menjadi cair, energi dilepaskan", "Struktur molekul air tetap utuh, energi dilepaskan"], correct: 1, cat: "Zat" },
+        { q: "Pernyataan paling tepat yang menunjukan adanya senyawa adalah …", options: ["Oksigen", "Jus lemon", "Minuman teh", "Gula", "Madu yang dicampur air teh"], correct: 3, cat: "Zat" },
+        { q: "Panel surya membantu memenuhi kebutuhan listrik harian seperti menyalakan komputer dan lampu. Perubahan energi yang terjadi adalah…", options: ["Energi listrik menjadi energi cahaya", "Energi panas menjadi energi gerak", "Energi cahaya matahari menjadi energi listrik", "Energi gerak menjadi energi kimia", "Energi bunyi menjadi energi panas"], correct: 2, cat: "Energi" },
+        { q: "Kantor memasang sensor otomatis sehingga lampu hanya menyala ketika ada orang di ruangan. Ini menunjukkan penerapan konsep …", options: ["Energi dapat digunakan tanpa batas", "Energi tidak dikendalikan penggunaannya", "Efisiensi energi untuk pemborosan", "Energi berubah menjadi satu bentuk saja", "Semua energi akan habis"], correct: 2, cat: "Energi" },
+        { q: "Berikut ini yang merupakan anggota Jovian planets adalah ....", options: ["Merkurius, Mars, Bumi", "Jupiter, Saturnus, Uranus", "Saturnus, Uranus, Neptunus", "Merkurius, Bumi, Jupiter", "Matahari, Merkurius, Bumi"], correct: 1, cat: "Astronomi" },
+        { q: "Citra menghubungi temannya di luar pulau, ternyata disana sudah menjelang malam. Fenomena yang paling tepat menjelaskan penyebab perbedaan waktu tersebut adalah …", options: ["Revolusi bumi", "Rotasi bumi menyebabkan perbedaan waktu", "Gerak bulan", "Perbedaan jarak bumi dengan matahari", "Perputaran matahari"], correct: 1, cat: "Astronomi" },
+        { q: "Berikut interaksi antar desa dan kota dalam bentuk mobilitas sosial adalah….", options: ["Desa menjadi tempat produksi", "Migrasi sekelompok orang kota ke desa", "Kemudahan mendistribusikan barang", "Pengembangan wilayah pertanian", "Keduanya saling membutuhkan"], correct: 1, cat: "Sosial" },
+        { q: "Kemajuan teknologi digital membuat transaksi jual beli dapat dilakukan tanpa bertemu langsung. Hal ini menunjukkan bahwa ....", options: ["Aspek ruang tidak lagi berperan", "Perkembangan waktu memengaruhi cara manusia memanfaatkan ruang", "Jarak geografis semakin membuat perbedaan", "Interaksi sosial menghilangkan nilai budaya", "Kebutuhan manusia tidak berkurang"], correct: 1, cat: "Sosial" },
+        { q: "Dinamika sosial antar karyawan karena pembagian tugas tidak adil, dapat dijelaskan sebagai …", options: ["Persaingan tanpa solusi", "Konflik sosial diatasi melalui komunikasi", "Pegawai bekerja sendiri", "Perubahan struktur organisasi", "Isolasi pegawai"], correct: 1, cat: "Sosial" },
+        { q: "Pegawai mengikuti berbagai pelatihan supaya meningkatkan kesejahteraan ekonominya karena…", options: ["Pegawai mengurangi waktu istirahat", "Pegawai mendapatkan keterampilan tambahan, meningkatkan produktivitas", "Pelatihan tanpa manfaat nyata", "Menghabiskan uang tanpa hasil", "Meniru rekan kerja"], correct: 1, cat: "Ekonomi" },
+        { q: "Seorang staf administrasi memiliki anggaran Rp 500.000 untuk membeli alat tulis bulan ini. Ia membeli: 10 Pulpen @Rp 15.000, 5 rim kertas @Rp 50.000, 8 Map @Rp 20.000. Sisa anggaran adalah…", options: ["Rp 50.000", "Rp 80.000", "Rp 70.000", "Rp 60.000", "Rp 90.000"], correct: 4, cat: "Ekonomi" },
+        { q: "Limbah kertas di kantor yang menumpuk dibakar di halaman belakang. Analisis yang tepat mengenai peristiwa ini adalah...", options: ["Perubahan fisika karena kertas hancur", "Perubahan kimia karena terbentuk abu dan gas CO2", "Hanya perubahan bentuk zat", "Proses pembersihan yang ramah lingkungan", "Zat awal dan zat akhir tetap sama"], correct: 1, cat: "Zat/HOTS" },
+        { q: "Pembangunan gedung tinggi di pusat kota menyebabkan area resapan air berkurang drastis. Dampak hidrologis yang paling mengancam saat hujan lebat adalah...", options: ["Meningkatnya laju infiltrasi", "Menurunnya suhu udara permukaan", "Meningkatnya volume run-off yang memicu banjir", "Terjadinya evaporasi yang berlebihan", "Sumber mata air semakin melimpah"], correct: 2, cat: "Lingkungan/HOTS" },
+        { q: "Seorang manajer memilih menggunakan sistem 'Cloud Storage' daripada mencetak dokumen fisik. Dilihat dari prinsip keberlanjutan, tindakan ini merupakan...", options: ["Pemborosan biaya internet", "Upaya pengurangan konsumsi sumber daya biotik (pohon)", "Tindakan yang tidak efisien", "Hanya mengikuti tren teknologi", "Mengurangi interaksi sosial"], correct: 1, cat: "Ekologi/HOTS" },
+        { q: "Saat cuaca ekstrem, penggunaan AC di kantor meningkat dua kali lipat. Solusi teknis abiotik yang paling tepat untuk efisiensi energi tanpa mematikan AC adalah...", options: ["Menambah jumlah kipas angin", "Mengecat ruangan dengan warna gelap", "Memasang peredam panas (insulasi) di plafon", "Membuka jendela lebar-lebar saat AC nyala", "Membiarkan pintu kantor terbuka"], correct: 2, cat: "Energi/HOTS" },
+        { q: "Hubungan antara kepadatan penduduk di perkotaan dengan ketersediaan ruang terbuka hijau (RTH) yang semakin menurun menunjukkan adanya...", options: ["Korelasi positif", "Keseimbangan ekosistem", "Konflik antara kebutuhan ruang dan fungsi ekologis", "Keberhasilan pembangunan fisik", "Stagnasi pertumbuhan ekonomi"], correct: 2, cat: "Spasial/HOTS" },
+        { q: "Dalam tata surya, sabuk asteroid terletak di antara orbit dua planet, yaitu...", options: ["Bumi dan Mars", "Mars dan Jupiter", "Jupiter dan Saturnus", "Venus dan Bumi", "Uranus dan Neptunus"], correct: 1, cat: "Astronomi" },
+        { q: "Perusahaan menerapkan kebijakan WFH (Work From Home) permanen. Dampak ekonomi-spasial yang terjadi di kawasan perkantoran adalah...", options: ["Meningkatnya permintaan sewa kantor", "Menurunnya omzet pedagang makanan di area perkantoran", "Lalu lintas semakin padat", "Harga tanah perkantoran melonjak", "Desentralisasi penduduk menjadi sulit"], correct: 1, cat: "Ekonomi/HOTS" },
+        { q: "Manakah yang merupakan campuran heterogen yang sering ditemukan di ruang pantry kantor?", options: ["Air mineral dalam kemasan", "Larutan gula jenuh", "Kopi tubruk yang memiliki endapan", "Sirup yang diaduk rata", "Udara bersih"], correct: 2, cat: "Zat" },
+        { q: "Seorang akuntan mengeluh penglihatan kabur karena paparan layar monitor terlalu lama. Faktor gejala alam abiotik yang berpengaruh di sini adalah...", options: ["Radiasi cahaya dari monitor", "Kurangnya asupan nutrisi", "Bakteri pada keyboard", "Tanaman di meja kerja", "Suhu ruangan yang dingin"], correct: 0, cat: "Abiotik" },
+        { q: "Jika Bumi berhenti berotasi namun tetap berevolusi, maka yang akan terjadi adalah...", options: ["Tidak ada lagi pergantian siang dan malam secara permanen", "Satu hari akan berlangsung selama satu tahun", "Gravitasi bumi akan hilang", "Bulan akan jatuh ke bumi", "Atmosfer akan lenyap"], correct: 1, cat: "Astronomi/HOTS" },
+        { q: "Konflik antara divisi pemasaran dan divisi produksi mengenai target penjualan merupakan contoh interaksi sosial bentuk...", options: ["Asosiatif", "Disosiatif", "Akulturasi", "Asimilasi", "Kerja sama"], correct: 1, cat: "Sosial" },
+        { q: "Tindakan mendaur ulang kertas bekas menjadi catatan kecil (memo) di kantor mencerminkan prinsip...", options: ["Reduce", "Reuse", "Recycle", "Replace", "Replant"], correct: 2, cat: "Lingkungan" },
+        { q: "Energi yang tersimpan dalam baterai laptop sebelum digunakan adalah energi...", options: ["Kinetik", "Panas", "Kimia", "Cahaya", "Bunyi"], correct: 2, cat: "Energi" },
+        { q: "Pertumbuhan penduduk yang pesat di kota satelit menyebabkan 'Urban Sprawl'. Istilah ini merujuk pada...", options: ["Pemusatan penduduk di satu titik", "Pemekaran wilayah kota ke arah pinggiran secara tidak teratur", "Pembangunan taman kota yang indah", "Migrasi penduduk dari kota ke desa", "Penurunan angka kriminalitas"], correct: 1, cat: "Sosial/Keruangan" },
+        { q: "Dalam ekonomi, keputusan seorang pegawai untuk menabung daripada membeli gadget baru merupakan bentuk penerapan...", options: ["Hukum permintaan", "Prinsip biaya peluang (opportunity cost)", "Hukum penawaran", "Inflasi", "Distribusi kekayaan"], correct: 1, cat: "Ekonomi/HOTS" }
+    ];
+
+    let examData = [];
+    let userAnswers = [];
+    let currentIndex = 0;
+    let timeLeft = 3600;
+    let timerId = null;
+
+    // --- LOGIKA DATABASE LOKAL (Agar Leaderboard jalan di GitHub) ---
+    const STORAGE_KEY = 'IPAS_SIMULATION_LEADERBOARD';
+
+    function getLocalLeaderboard() {
+        const data = localStorage.getItem(STORAGE_KEY);
+        return data ? JSON.parse(data) : [];
+    }
+
+    function saveToLocalLeaderboard(entry) {
+        let current = getLocalLeaderboard();
+        current.push(entry);
+        // Urutkan berdasarkan skor tertinggi
+        current.sort((a, b) => b.score - a.score);
+        // Simpan 50 besar saja
+        current = current.slice(0, 50);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+        updateLeaderboardUI();
+    }
+
+    function updateLeaderboardUI() {
+        const list = document.getElementById('leaderboard-list');
+        const data = getLocalLeaderboard();
+        
+        if (data.length === 0) {
+            list.innerHTML = '<p class="text-center italic opacity-50">Belum ada data skor.</p>';
+            return;
+        }
+
+        list.innerHTML = data.slice(0, 10).map((item, index) => `
+            <div class="flex justify-between items-center bg-slate-700/50 p-3 rounded-lg border border-slate-600 mb-2">
+                <div class="flex items-center gap-3">
+                    <span class="font-black text-slate-500 w-4">${index + 1}</span>
+                    <div>
+                        <div class="font-bold text-white truncate w-32 md:w-48">${item.name}</div>
+                        <div class="text-[10px] text-slate-400 font-mono">${item.idNumber}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-blue-400 font-black text-lg">${item.score}</div>
+                    <div class="text-[8px] uppercase font-bold text-slate-500">${new Date(item.timestamp).toLocaleDateString()}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // --- UI & Navigasi ---
+    window.onload = () => {
+        updateLeaderboardUI();
+    };
+
+    window.startExam = () => {
+        const nama = document.getElementById('input-nama').value.trim();
+        const nomor = document.getElementById('input-nomor').value.trim();
+        if(!nama || !nomor) return alert("Harap isi Nama dan Nomor Peserta!");
+
+        examData = [...questions].sort(() => Math.random() - 0.5);
+        userAnswers = new Array(examData.length).fill(null);
+        
+        document.getElementById('disp-nama').innerText = nama.toUpperCase();
+        document.getElementById('disp-nomor').innerText = nomor;
+        document.getElementById('login-screen').classList.add('hidden');
+
+        initNav();
+        renderQuestion();
+        startTimer();
+    };
+
+    function initNav() {
+        const grid = document.getElementById('nav-grid');
+        grid.innerHTML = '';
+        examData.forEach((_, i) => {
+            const btn = document.createElement('div');
+            btn.className = 'nav-item';
+            btn.innerText = i + 1;
+            btn.id = `nav-${i}`;
+            btn.onclick = () => { currentIndex = i; renderQuestion(); };
+            grid.appendChild(btn);
+        });
+    }
+
+    window.renderQuestion = () => {
+        const data = examData[currentIndex];
+        document.getElementById('q-number').innerText = `SOAL NO. ${currentIndex + 1}`;
+        document.getElementById('q-category').innerText = data.cat;
+        document.getElementById('q-text').innerText = data.q;
+
+        const list = document.getElementById('options-list');
+        list.innerHTML = '';
+        data.options.forEach((opt, i) => {
+            const div = document.createElement('div');
+            div.className = `option ${userAnswers[currentIndex] === i ? 'selected' : ''}`;
+            div.innerHTML = `<div class="opt-letter">${String.fromCharCode(65+i)}</div><div>${opt}</div>`;
+            div.onclick = () => { userAnswers[currentIndex] = i; renderQuestion(); };
+            list.appendChild(div);
+        });
+
+        document.getElementById('prev-btn').disabled = currentIndex === 0;
+        document.getElementById('next-btn').innerText = currentIndex === examData.length - 1 ? 'SELESAI' : 'SELANJUTNYA';
+        document.getElementById('next-btn').onclick = currentIndex === examData.length - 1 ? openConfirmModal : () => changeQuestion(1);
+        updateNav();
+    };
+
+    function updateNav() {
+        examData.forEach((_, i) => {
+            const el = document.getElementById(`nav-${i}`);
+            if (!el) return;
+            el.className = 'nav-item';
+            if(i === currentIndex) el.classList.add('active');
+            if(userAnswers[i] !== null) el.classList.add('filled');
+        });
+    }
+
+    window.changeQuestion = (dir) => {
+        currentIndex += dir;
+        renderQuestion();
+    };
+
+    window.openConfirmModal = () => {
+        const remain = userAnswers.filter(a => a === null).length;
+        document.getElementById('confirm-msg').innerText = remain > 0 ? `Ada ${remain} soal belum dijawab. Kirim?` : "Semua soal terjawab. Kirim sekarang?";
+        document.getElementById('confirm-modal').classList.replace('hidden', 'flex');
+    };
+
+    window.closeConfirmModal = () => document.getElementById('confirm-modal').classList.replace('flex', 'hidden');
+
+    window.finishExam = () => {
+        clearInterval(timerId);
+        closeConfirmModal();
+
+        let correct = 0;
+        userAnswers.forEach((ans, i) => { if(ans === examData[i].correct) correct++; });
+        const score = Math.round((correct / examData.length) * 100);
+
+        // Simpan ke Leaderboard Lokal
+        saveToLocalLeaderboard({
+            name: document.getElementById('input-nama').value,
+            idNumber: document.getElementById('input-nomor').value,
+            score: score,
+            timestamp: Date.now()
+        });
+
+        document.getElementById('res-name').innerText = document.getElementById('input-nama').value.toUpperCase();
+        document.getElementById('res-id').innerText = document.getElementById('input-nomor').value;
+        document.getElementById('final-score').innerText = score;
+        document.getElementById('final-stats').innerText = `${correct} / ${examData.length}`;
+        document.getElementById('res-timestamp').innerText = new Date().toLocaleString('id-ID');
+        
+        renderReview();
+        document.getElementById('result-modal').classList.replace('hidden', 'flex');
+    };
+
+    function renderReview() {
+        const list = document.getElementById('review-list');
+        list.innerHTML = '';
+        examData.forEach((item, idx) => {
+            const userAnswerIdx = userAnswers[idx];
+            const isCorrect = userAnswerIdx === item.correct;
+            const card = document.createElement('div');
+            card.className = `p-4 rounded-xl border-2 ${isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`;
+            
+            let optsHtml = item.options.map((opt, oIdx) => {
+                let color = 'text-slate-500';
+                if (oIdx === item.correct) color = 'text-green-700 font-bold';
+                else if (oIdx === userAnswerIdx) color = 'text-red-700 font-bold line-through';
+                return `<div class="text-xs py-1 ${color}">${String.fromCharCode(65+oIdx)}. ${opt}</div>`;
+            }).join('');
+
+            card.innerHTML = `
+                <div class="flex justify-between text-[10px] font-bold mb-1">
+                    <span>NO. ${idx+1}</span>
+                    <span class="${isCorrect ? 'text-green-600' : 'text-red-600'}">${isCorrect ? 'BENAR' : 'SALAH'}</span>
+                </div>
+                <p class="text-sm font-medium mb-2">${item.q}</p>
+                <div class="bg-white/50 p-2 rounded-lg border border-white">${optsHtml}</div>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    function startTimer() {
+        timerId = setInterval(() => {
+            timeLeft--;
+            const m = Math.floor(timeLeft/60);
+            const s = timeLeft%60;
+            document.getElementById('timer-display').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+            if(timeLeft <= 0) finishExam();
+        }, 1000);
+    }
+</script>
+</body>
+</html>
